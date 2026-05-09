@@ -83,28 +83,41 @@ img{max-width:100%;height:auto}
 .bn-item.bn-enq i{font-size:1.1rem}
 .bn-item.bn-enq:hover{color:#fff;opacity:.9}
 
-/* ─── CAROUSEL ─── */
-.carousel-sec{background:linear-gradient(160deg,var(--dark) 0%,var(--dark2) 100%);padding:40px 0 50px;position:relative;overflow:hidden}
-.carousel-sec::before{content:'';position:absolute;width:400px;height:400px;background:radial-gradient(circle,rgba(14,165,233,.15) 0%,transparent 65%);top:-100px;right:-80px;border-radius:50%;pointer-events:none}
-.cs-title{font-family:'Playfair Display',serif;color:#fff;font-size:1.4rem;font-weight:700}
-.cs-sub{color:rgba(255,255,255,.5);font-size:12.5px;font-family:'Lora',serif;margin-top:3px}
-.cs-line{width:36px;height:3px;background:linear-gradient(90deg,var(--p2),var(--p3));border-radius:4px;margin:10px 0 18px}
-.branded-car{border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.45);touch-action:pan-y}
-.branded-car .carousel-inner{aspect-ratio:16/9}
-.branded-car .carousel-item img{width:100%;height:100%;object-fit:cover}
-.branded-car .carousel-control-prev,.branded-car .carousel-control-next{width:48px;opacity:1}
-.branded-car .carousel-control-prev-icon,.branded-car .carousel-control-next-icon{display:none}
-.car-ctrl{width:38px;height:38px;border-radius:50%;background:var(--dark);border:2px solid var(--p2);color:var(--p3);display:flex;align-items:center;justify-content:center;font-size:.9rem;transition:.25s}
-.branded-car .carousel-control-prev:hover .car-ctrl,.branded-car .carousel-control-next:hover .car-ctrl{background:var(--p1);color:#fff;border-color:var(--p1)}
-.branded-car .carousel-indicators{margin-bottom:-24px}
-.branded-car .carousel-indicators [data-bs-target]{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.3);border:2px solid rgba(255,255,255,.4);transition:.3s;margin:0 3px}
-.branded-car .carousel-indicators .active{background:var(--p2);border-color:var(--p2);width:24px;border-radius:5px}
-@media(max-width:576px){
-  .carousel-sec{padding:24px 0 34px}
-  .cs-title{font-size:1.15rem}
-  .branded-car .carousel-inner{aspect-ratio:4/3}
-  .branded-car{border-radius:12px}
-}
+/* ═══ FULL-SCREEN CAROUSEL (CHANGED) ═══ */
+.hero-carousel{position:relative;width:100%;height:100vh;min-height:500px;max-height:860px;overflow:hidden}
+@media(max-width:767px){.hero-carousel{height:100svh;min-height:420px;max-height:680px}}
+.hero-carousel .carousel,
+.hero-carousel .carousel-inner,
+.hero-carousel .carousel-item{height:100%}
+.hero-carousel .carousel-item img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
+.hero-carousel .carousel-item::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(12,26,46,.2) 0%,rgba(12,26,46,.55) 50%,rgba(12,26,46,.8) 100%);pointer-events:none}
+/* caption */
+.hc-caption{position:absolute;bottom:0;left:0;right:0;z-index:10;padding:0 0 80px;text-align:center}
+@media(max-width:767px){.hc-caption{padding:0 16px 72px}}
+.hc-caption .hc-badge{display:inline-flex;align-items:center;gap:7px;background:rgba(14,165,233,.2);color:var(--p3);border:1px solid rgba(14,165,233,.4);border-radius:30px;padding:6px 16px;font-size:11px;font-family:'Lora',serif;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;backdrop-filter:blur(6px)}
+.hc-caption h2{font-family:'Playfair Display',serif;font-size:clamp(1.8rem,5vw,3.4rem);font-weight:800;color:#fff;line-height:1.15;text-shadow:0 2px 20px rgba(0,0,0,.4);margin-bottom:12px}
+.hc-caption h2 span{color:var(--p3)}
+.hc-caption p{color:rgba(255,255,255,.78);font-size:clamp(.85rem,2vw,1.05rem);font-family:'Lora',serif;max-width:600px;margin:0 auto 22px;line-height:1.8;text-shadow:0 1px 8px rgba(0,0,0,.3)}
+.hc-btn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--p1),var(--p2));color:#fff;border:none;border-radius:30px;padding:13px 30px;font-size:14px;font-family:'Lora',serif;font-weight:700;box-shadow:0 6px 24px rgba(2,132,199,.45);text-decoration:none;transition:all .3s}
+.hc-btn:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(2,132,199,.55);color:#fff}
+/* indicators */
+.hero-carousel .carousel-indicators{bottom:32px;margin-bottom:0;z-index:15}
+@media(max-width:767px){.hero-carousel .carousel-indicators{bottom:52px}}
+.hero-carousel .carousel-indicators [data-bs-target]{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.5);transition:.3s;margin:0 4px}
+.hero-carousel .carousel-indicators .active{background:var(--p2);border-color:var(--p2);width:28px;border-radius:5px}
+/* controls */
+.hero-carousel .carousel-control-prev,
+.hero-carousel .carousel-control-next{width:56px;opacity:1;z-index:15}
+.hero-carousel .carousel-control-prev-icon,
+.hero-carousel .carousel-control-next-icon{display:none}
+.hcar-ctrl{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem;backdrop-filter:blur(8px);transition:.25s}
+.hero-carousel .carousel-control-prev:hover .hcar-ctrl,
+.hero-carousel .carousel-control-next:hover .hcar-ctrl{background:var(--p1);border-color:var(--p1)}
+/* scroll hint */
+.scroll-hint{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);z-index:15;display:flex;flex-direction:column;align-items:center;gap:4px;color:rgba(255,255,255,.55);font-size:10px;font-family:'Lora',serif;letter-spacing:.8px;text-transform:uppercase;animation:bounce 2s infinite;cursor:pointer;text-decoration:none}
+@media(max-width:767px){.scroll-hint{bottom:68px}}
+.scroll-hint i{font-size:1.2rem}
+@keyframes bounce{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(6px)}}
 
 /* ─── HERO ─── */
 .hero{background:linear-gradient(135deg,var(--dark) 0%,var(--dark2) 50%,#0369a1 100%);padding:60px 0 52px;position:relative;overflow:hidden}
@@ -190,23 +203,25 @@ img{max-width:100%;height:auto}
 .course-card small{color:var(--muted);font-size:11.5px;font-family:'Lora',serif}
 .c-badge{display:inline-block;font-size:10px;font-family:'Lora',serif;font-weight:700;padding:3px 10px;border-radius:20px;margin-top:8px;background:var(--p-light);color:var(--p1);border:1px solid var(--p-border)}
 
-/* ─── GALLERY ─── */
+/* ═══ GALLERY — UNIFORM SQUARE GRID (CHANGED) ═══ */
 .gallery-sec{background:var(--bg3);padding:64px 0}
 @media(max-width:767px){.gallery-sec{padding:44px 0}}
-.g-grid{columns:3;gap:10px}
-@media(max-width:767px){.g-grid{columns:2;gap:8px}}
-@media(max-width:400px){.g-grid{columns:1}}
-.g-item{break-inside:avoid;margin-bottom:10px;border-radius:12px;overflow:hidden;position:relative;cursor:pointer;border:2.5px solid #fff;box-shadow:0 3px 12px rgba(2,132,199,.1);transition:transform .25s,box-shadow .25s}
+.g-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:991px){.g-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:575px){.g-grid{grid-template-columns:repeat(2,1fr);gap:7px}}
+.g-item{position:relative;overflow:hidden;border-radius:12px;cursor:pointer;border:2.5px solid #fff;box-shadow:0 3px 12px rgba(2,132,199,.1);transition:transform .25s,box-shadow .25s;aspect-ratio:1/1}
+.g-item:hover{transform:scale(1.03);box-shadow:0 8px 24px rgba(2,132,199,.22)}
 .g-item:active{transform:scale(.97)}
-.g-item:hover{transform:scale(1.02);box-shadow:0 8px 24px rgba(2,132,199,.2)}
-.g-item img{width:100%;display:block;transition:transform .35s}
-.g-item:hover img,.g-item:active img{transform:scale(1.05)}
+.g-item img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;transition:transform .35s;display:block}
+.g-item:hover img,.g-item:active img{transform:scale(1.07)}
 .g-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(12,26,46,.75) 0%,transparent 55%);opacity:0;transition:opacity .25s;display:flex;align-items:flex-end;padding:10px 12px}
 .g-item:hover .g-overlay{opacity:1}
 .g-lbl{color:#fff;font-size:11px;font-family:'Lora',serif;font-weight:700}
 .g-zoom{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.8rem;opacity:0;transition:opacity .25s}
 .g-item:hover .g-zoom{opacity:1}
-.g-empty{text-align:center;padding:44px;color:var(--muted);column-span:all}
+.g-empty{text-align:center;padding:48px;color:var(--muted);grid-column:1/-1}
+.g-empty svg{width:44px;height:44px;margin-bottom:10px;display:block;margin-inline:auto}
+.g-empty p{font-size:14px;margin:0}
 
 /* ─── CONTACT ─── */
 .contact-sec{background:#fff;padding:64px 0}
@@ -256,7 +271,6 @@ footer{background:var(--dark);padding:44px 0 0;border-top:3px solid var(--p1)}
 .fu{animation:fadeUp .65s ease both}
 .d1{animation-delay:.1s}.d2{animation-delay:.2s}.d3{animation-delay:.32s}.d4{animation-delay:.44s}
 
-/* ─── UTILITY ─── */
 @media(max-width:767px){
   .container{padding-left:16px;padding-right:16px}
   .mb-mob-3{margin-bottom:1rem!important}
@@ -325,15 +339,10 @@ footer{background:var(--dark);padding:44px 0 0;border-top:3px solid var(--p1)}
   </div>
 </nav>
 
-<!-- CAROUSEL (TOP) -->
-<section class="carousel-sec">
-  <div class="container" style="position:relative;z-index:1">
-    <div class="mb-3">
-      <div class="cs-title">Campus Highlights</div>
-      <div class="cs-sub">A glimpse into life at University College</div>
-      <div class="cs-line"></div>
-    </div>
-    <div id="homeCarousel" class="carousel slide branded-car" data-bs-ride="carousel">
+<!-- ═══ FULL-SCREEN CAROUSEL (CHANGED) ═══ -->
+<section id="home">
+  <div class="hero-carousel">
+    <div id="homeCarousel" class="carousel slide h-100" data-bs-ride="carousel" data-bs-interval="5000">
       <div class="carousel-indicators">
         {% for item in carousels %}
         <button type="button" data-bs-target="#homeCarousel" data-bs-slide-to="{{ forloop.counter0 }}"
@@ -341,32 +350,37 @@ footer{background:var(--dark);padding:44px 0 0;border-top:3px solid var(--p1)}
           aria-current="{% if forloop.first %}true{% else %}false{% endif %}"></button>
         {% endfor %}
       </div>
-      <div class="carousel-inner">
+      <div class="carousel-inner h-100">
         {% for item in carousels %}
-        <div class="carousel-item {% if forloop.first %}active{% endif %}">
+        <div class="carousel-item h-100 {% if forloop.first %}active{% endif %}">
           <img src="{{ item.image.url }}" alt="{{ item.title }}" loading="lazy">
-          {% if item.title %}
-          <div class="carousel-caption d-none d-sm-block" style="background:rgba(12,26,46,.4);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:8px 14px;backdrop-filter:blur(8px);bottom:16px">
-            <div style="font-family:'Playfair Display',serif;font-weight:800;color:var(--p3);font-size:.95rem">{{ item.title }}</div>
+          <div class="hc-caption">
+            <div class="hc-badge"><i class="bi bi-patch-check-fill"></i> Est. 2011 — Premier Institution</div>
+            <h2>{% if item.title %}{{ item.title }}{% else %}University Arts &amp; <span>Science College</span>{% endif %}</h2>
+            <p>A premier institution in Palakkad, Kerala — dedicated to academic excellence &amp; holistic development.</p>
+            <a href="#courses" class="hc-btn"><i class="bi bi-book-fill"></i> Explore Courses</a>
           </div>
-          {% endif %}
         </div>
         {% endfor %}
       </div>
       <button class="carousel-control-prev" type="button" data-bs-target="#homeCarousel" data-bs-slide="prev">
-        <span class="car-ctrl"><i class="bi bi-chevron-left"></i></span>
+        <span class="hcar-ctrl"><i class="bi bi-chevron-left"></i></span>
         <span class="visually-hidden">Previous</span>
       </button>
       <button class="carousel-control-next" type="button" data-bs-target="#homeCarousel" data-bs-slide="next">
-        <span class="car-ctrl"><i class="bi bi-chevron-right"></i></span>
+        <span class="hcar-ctrl"><i class="bi bi-chevron-right"></i></span>
         <span class="visually-hidden">Next</span>
       </button>
     </div>
+    <a href="#hero-info" class="scroll-hint">
+      <i class="bi bi-chevron-double-down"></i>
+      <span>Scroll</span>
+    </a>
   </div>
 </section>
 
 <!-- HERO -->
-<section id="home" class="hero">
+<section id="hero-info" class="hero">
   <div class="container" style="position:relative;z-index:1">
     <div class="row align-items-center g-4">
       <div class="col-lg-6">
@@ -490,7 +504,7 @@ footer{background:var(--dark);padding:44px 0 0;border-top:3px solid var(--p1)}
   </div>
 </section>
 
-<!-- GALLERY -->
+<!-- ═══ GALLERY — UNIFORM SQUARE GRID (CHANGED) ═══ -->
 <section id="gallery" class="gallery-sec">
   <div class="container">
     <div class="text-center mb-4">
@@ -648,7 +662,6 @@ footer{background:var(--dark);padding:44px 0 0;border-top:3px solid var(--p1)}
   document.getElementById('glbPrev')?.addEventListener('click',()=>nav(-1));
   document.getElementById('glbNext')?.addEventListener('click',()=>nav(1));
   lb?.addEventListener('click',e=>{if(e.target===lb)closeLB()});
-  /* Swipe lightbox */
   lb?.addEventListener('touchstart',e=>{startX=e.touches[0].clientX},{passive:true});
   lb?.addEventListener('touchend',e=>{
     const dx=e.changedTouches[0].clientX-startX;
@@ -667,7 +680,6 @@ footer{background:var(--dark);padding:44px 0 0;border-top:3px solid var(--p1)}
   const deskLinks=document.querySelectorAll('.nav-link[href^="#"]');
   const bnItems=document.querySelectorAll('.bn-item[data-bn]');
   const stBtn=document.getElementById('stBtn');
-
   function spy(){
     let active='';
     secs.forEach(s=>{if(window.scrollY>=s.offsetTop-120)active=s.id});
