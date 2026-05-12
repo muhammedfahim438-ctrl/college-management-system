@@ -84,6 +84,7 @@ def admin_logout(request):
     request.session.flush()
     return redirect('admin_login')
 
+
 # ── DASHBOARD ─────────────────────────────────────────────────────
 
 @login_required(login_url='admin_login')
@@ -95,6 +96,7 @@ def dashboard(request):
         'gallery_count':  Gallery.objects.count(),
         'contact_count':  Contact.objects.count(),
     })
+
 
 # ── OTP API ───────────────────────────────────────────────────────
 
@@ -141,7 +143,7 @@ def verify_otp_api(request):
 
 # ── AJAX: COUNTS ──────────────────────────────────────────────────
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def dashboard_counts(request):
     return JsonResponse({
         'student_count':  Student.objects.count(),
@@ -153,7 +155,7 @@ def dashboard_counts(request):
 
 # ── AJAX: STUDENTS ────────────────────────────────────────────────
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def student_list_json(request):
     students = list(Student.objects.order_by('-id').values(
         'id', 'name', 'email', 'phone', 'course', 'date_of_joining'))
@@ -162,7 +164,7 @@ def student_list_json(request):
     return JsonResponse({'students': students})
 
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def student_add_ajax(request):
     if request.method == 'POST':
         try:
@@ -180,7 +182,7 @@ def student_add_ajax(request):
     return JsonResponse({'error': 'POST required'}, status=400)
 
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def student_edit_ajax(request, pk):
     if request.method == 'POST':
         try:
@@ -198,7 +200,7 @@ def student_edit_ajax(request, pk):
     return JsonResponse({'error': 'POST required'}, status=400)
 
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def student_delete_ajax(request, pk):
     if request.method == 'POST':
         get_object_or_404(Student, pk=pk).delete()
@@ -208,14 +210,14 @@ def student_delete_ajax(request, pk):
 
 # ── AJAX: CAROUSEL ────────────────────────────────────────────────
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def carousel_list_json(request):
     items = [{'id': i.id, 'title': i.title or '', 'image_url': i.image.url}
              for i in Carousel.objects.order_by('-id')]
     return JsonResponse({'items': items})
 
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def carousel_add_ajax(request):
     if request.method == 'POST':
         image = request.FILES.get('image')
@@ -229,7 +231,7 @@ def carousel_add_ajax(request):
     return JsonResponse({'error': 'POST required'}, status=400)
 
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def carousel_edit_ajax(request, pk):
     if request.method == 'POST':
         try:
@@ -243,7 +245,7 @@ def carousel_edit_ajax(request, pk):
     return JsonResponse({'error': 'POST required'}, status=400)
 
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def carousel_delete_ajax(request, pk):
     if request.method == 'POST':
         get_object_or_404(Carousel, pk=pk).delete()
@@ -253,14 +255,14 @@ def carousel_delete_ajax(request, pk):
 
 # ── AJAX: GALLERY ─────────────────────────────────────────────────
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def gallery_list_json(request):
     items = [{'id': i.id, 'title': i.title or '', 'image_url': i.image.url}
              for i in Gallery.objects.order_by('-id')]
     return JsonResponse({'items': items})
 
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def gallery_add_ajax(request):
     if request.method == 'POST':
         image = request.FILES.get('image')
@@ -274,7 +276,7 @@ def gallery_add_ajax(request):
     return JsonResponse({'error': 'POST required'}, status=400)
 
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def gallery_edit_ajax(request, pk):
     if request.method == 'POST':
         try:
@@ -288,7 +290,7 @@ def gallery_edit_ajax(request, pk):
     return JsonResponse({'error': 'POST required'}, status=400)
 
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def gallery_delete_ajax(request, pk):
     if request.method == 'POST':
         get_object_or_404(Gallery, pk=pk).delete()
@@ -298,7 +300,7 @@ def gallery_delete_ajax(request, pk):
 
 # ── AJAX: CONTACTS ────────────────────────────────────────────────
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def contact_list_json(request):
     contacts = list(Contact.objects.order_by('-id').values(
         'id', 'name', 'email', 'subject', 'message', 'created_at'))
@@ -307,7 +309,7 @@ def contact_list_json(request):
     return JsonResponse({'contacts': contacts})
 
 
-@login_required(login_url='admin_login')
+@csrf_exempt
 def contact_delete_ajax(request, pk):
     if request.method == 'POST':
         get_object_or_404(Contact, pk=pk).delete()
