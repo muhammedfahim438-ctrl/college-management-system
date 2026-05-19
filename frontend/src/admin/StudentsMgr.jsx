@@ -1,10 +1,29 @@
 import { useState, useEffect } from 'react'
+import { s, Modal, Confirm, Pagination } from './adminStyles'
+
+// ── FIX 1: Define perPage constant ──────────────────────────────
+const perPage = 10
 
 function getCsrf() {
   return document.cookie.match(/csrftoken=([^;]+)/)?.[1] || ''
 }
 
-const emptyForm = { name: '', email: '', phone: '', course: '', date_of_joining: '' }
+const COURSE_GROUPS = [
+  {
+    group: '🔬 Science',
+    courses: ['BSc Physics','BSc Chemistry','BSc Zoology','BSc Botany','BSc Mathematics','BSc Microbiology','BSc Electronics','BSc Statistics'],
+  },
+  {
+    group: '💻 Computer',
+    courses: ['BCA','BSc Computer Science','BSc AI & ML','BSc IT','BSc Data Science','BSc Cyber Security','BSc IoT','BSc Cloud Computing'],
+  },
+  {
+    group: '📊 Commerce',
+    courses: ['BCom Finance','BCom Banking','BCom Marketing','BCom Taxation','BCom HR','BCom E-Commerce','BCom Business Analytics','BCom Accounting'],
+  },
+]
+
+const empty = { name:'', email:'', phone:'', course:'', date_of_joining:'' }
 
 function StudentsMgr() {
   const [students, setStudents] = useState([])
@@ -12,253 +31,302 @@ function StudentsMgr() {
   const [filter, setFilter]     = useState('')
   const [loading, setLoading]   = useState(true)
   const [modal, setModal]       = useState(false)
-  const [form, setForm]         = useState(emptyForm)
+  const [form, setForm]         = useState(empty)
   const [editId, setEditId]     = useState(null)
   const [saving, setSaving]     = useState(false)
   const [confirm, setConfirm]   = useState(null)
   const [page, setPage]         = useState(1)
-  const perPage = 10
+  const [total, setTotal]       = useState(0)
 
-  const load = () => {
+  const load = (p = page) => {
     setLoading(true)
-    fetch('/college-admin/api/students/', { credentials: 'include' })
+    fetch(`/api/students/`, { credentials:'include' })
       .then(r => r.json())
-      .then(d => { setStudents(d.students || []); setLoading(false) })
+      .then(d => {
+        // DRF returns plain array
+        const list = Array.isArray(d) ? d : (d.students || [])
+        setStudents(list)
+        setTotal(list.length)
+        setPage(1)
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(1) }, [])
 
-  const openAdd = () => {
-    setEditId(null); setForm(emptyForm); setModal(true)
-  }
-
-  const openEdit = (s) => {
-    setEditId(s.id)
-    setForm({ name: s.name, email: s.email, phone: s.phone || '', course: s.course || '', date_of_joining: s.date_of_joining || '' })
+  const openAdd  = () => { setEditId(null); setForm(empty); setModal(true) }
+  const openEdit = st => {
+    setEditId(st.id)
+    // Split stored phone "+91 98765 43210" back into code and number
+    const phoneParts = (st.phone || '').match(/^(\+\d+)\s*(.*)$/)
+    const phoneCode = phoneParts ? phoneParts[1] : '+91'
+    const phoneNum  = phoneParts ? phoneParts[2].trim() : (st.phone || '')
+    setForm({
+      name: st.name, email: st.email,
+      phoneCode, phone: phoneNum,
+      course: st.course||'', date_of_joining: st.date_of_joining||''
+    })
     setModal(true)
   }
+  const handleChange = e => {
+    const { name, value } = e.target
+    let val = value
 
-  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value })
+    if (name === 'name') {
+      // Auto uppercase every word
+      val = value.replace(/\b\w/g, c => c.toUpperCase())
+    }
+
+    if (name === 'email') {
+      // Always lowercase
+      val = value.toLowerCase()
+    }
+
+    if (name === 'phone') {
+      // Only digits, max 10
+      const digits = value.replace(/\D/g, '').slice(0, 10)
+      // Format: XXXXX XXXXX
+      val = digits.length > 5 ? digits.slice(0, 5) + ' ' + digits.slice(5) : digits
+    }
+
+    setForm({ ...form, [name]: val })
+  }
 
   const save = async () => {
-    if (!form.name || !form.email || !form.phone || !form.course || !form.date_of_joining) {
-      alert('Please fill all fields.'); return
-    }
+    if (!form.name||!form.email||!form.phone||!form.course||!form.date_of_joining) { alert('Please fill all fields.'); return }
+    if (!form.email.includes('@')) { alert('Please enter a valid email with @.'); return }
+    const rawDigits = form.phone.replace(/\D/g, '')
+    if (rawDigits.length !== 10) { alert('Please enter a valid 10-digit phone number.'); return }
+    const joinYear = new Date(form.date_of_joining).getFullYear()
+    if (joinYear <= 2011) { alert('Date of joining must be after 2011.'); return }
+    // Combine country code + phone for storage
+    const phoneCode = form.phoneCode || '+91'
+    const fullPhone = `${phoneCode} ${form.phone}`
+    const payload = { ...form, phone: fullPhone }
     setSaving(true)
     try {
-      const url = editId
-        ? `/college-admin/api/students/edit/${editId}/`
-        : '/college-admin/api/students/add/'
+      const url = editId ? `/college-admin/api/students/edit/${editId}/` : '/college-admin/api/students/add/'
       const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-        credentials: 'include',
-        body: JSON.stringify(form),
+        method:'POST', credentials:'include',
+        headers:{ 'Content-Type':'application/json','X-CSRFToken':getCsrf() },
+        body:JSON.stringify(form)
       })
       const d = await res.json()
-      if (d.success) { setModal(false); load() }
-      else alert(d.error || 'Failed to save.')
+      if (d.success) { setModal(false); load(1) } else alert(d.error||'Failed.')
     } catch { alert('Network error.') }
     setSaving(false)
   }
 
-  const deleteStudent = async (id) => {
+  const deleteStudent = async id => {
     const res = await fetch(`/college-admin/api/students/delete/${id}/`, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf() },
-      credentials: 'include',
+      method:'POST', credentials:'include', headers:{ 'X-CSRFToken':getCsrf() }
     })
     const d = await res.json()
-    if (d.success) load()
-    else alert(d.error || 'Failed to delete.')
+    if (d.success) load(); else alert(d.error||'Failed.')
     setConfirm(null)
   }
 
-  // Export CSV
   const exportCSV = () => {
-    const headers = ['#', 'Name', 'Email', 'Phone', 'Course', 'Date of Joining']
-    const rows = students.map((s, i) => [i + 1, s.name, s.email, s.phone || '', s.course || '', s.date_of_joining || ''])
-    const csv = [headers, ...rows].map(r => r.map(c => `"${(c || '').toString().replace(/"/g, '""')}"`).join(',')).join('\n')
+    const headers = ['#','Name','Email','Phone','Course','Date of Joining']
+    const rows = students.map((st,i) => [i+1,st.name,st.email,st.phone||'',st.course||'',st.date_of_joining||''])
+    const csv = [headers,...rows].map(r => r.map(c => `"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n')
     const a = document.createElement('a')
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv)
-    a.download = 'students_export.csv'; a.click()
+    a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv)
+    a.download = 'students.csv'; a.click()
   }
 
-  // Filter + search
-  const courses = [...new Set(students.map(s => s.course).filter(Boolean))].sort()
-  const filtered = students.filter(s => {
+  const filtered = students.filter(st => {
     const q = search.toLowerCase()
-    const matchQ = !q || (s.name + s.email + (s.course || '')).toLowerCase().includes(q)
-    const matchC = !filter || s.course === filter
-    return matchQ && matchC
+    return (!q||(st.name+st.email+(st.course||'')).toLowerCase().includes(q)) && (!filter||st.course===filter)
   })
 
-  // Pagination
-  const total = filtered.length
-  const totalPages = Math.ceil(total / perPage)
-  const paged = filtered.slice((page - 1) * perPage, page * perPage)
+  // ── FIX 1 (continued): perPage is now defined above ──
+  const paged = filtered.slice((page-1)*perPage, page*perPage)
+
+  // ── FIX 2: Use "form-" prefix to avoid duplicate keys ──────────
+  const CourseSelect = ({ value, onChange, style = {} }) => (
+    <select name="course" value={value} onChange={onChange} style={{ ...s.input, ...style }}>
+      <option value="">Select a course</option>
+      {COURSE_GROUPS.map(g => (
+        <optgroup key={`form-${g.group}`} label={g.group}>
+          {g.courses.map(c => <option key={`form-${c}`} value={c}>{c}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  )
+
+  const courseBadgeStyle = course => {
+    if (!course) return s.courseBadge
+    if (COURSE_GROUPS[0].courses.includes(course)) return { ...s.courseBadge, background:'#d1fae5', color:'#065f46', borderColor:'#a7f3d0' }
+    if (COURSE_GROUPS[1].courses.includes(course)) return { ...s.courseBadge, background:'#e0f2fe', color:'#0369a1', borderColor:'#bae6fd' }
+    return { ...s.courseBadge, background:'#fef3c7', color:'#92400e', borderColor:'#fcd34d' }
+  }
+
+  const modalContent = (
+    <>
+      {[
+        { label:'Full Name *', name:'name', type:'text', placeholder:'Enter full name' },
+        { label:'Email *',     name:'email', type:'email', placeholder:'Enter email' },
+        { label:'Phone *',     name:'phone', type:'text', placeholder:'Enter phone number' },
+      ].map(f => (
+        <div key={f.name} style={s.formGroup}>
+          <label style={s.label}>{f.label}</label>
+          <input type={f.type} name={f.name} value={form[f.name]} onChange={handleChange} placeholder={f.placeholder} style={s.input} />
+        </div>
+      ))}
+      <div style={s.formGroup}>
+        <label style={s.label}>Course *</label>
+        <CourseSelect value={form.course} onChange={handleChange} />
+      </div>
+      <div style={s.formGroup}>
+        <label style={s.label}>Date of Joining *</label>
+        <input type="date" name="date_of_joining" value={form.date_of_joining} onChange={handleChange}
+          min="2012-01-01"
+          style={s.input} />
+      </div>
+      <button onClick={save} disabled={saving} style={s.saveBtn}>
+        {saving ? <><i className="bi bi-hourglass-split me-2"></i>Saving...</> : <><i className="bi bi-check-lg me-2"></i>Save Student</>}
+      </button>
+    </>
+  )
 
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+      <div style={s.pageHeader}>
         <div>
-          <h4 style={{ fontSize: 21, fontWeight: 700, color: '#1a202c', margin: 0 }}>Students</h4>
-          <p style={{ color: '#718096', fontSize: 13, margin: '3px 0 0' }}>Add, edit and delete student records</p>
+          <h4 style={s.pageTitle}>Students</h4>
+          <p style={s.pageSubtitle}>Manage student records</p>
         </div>
-        <button onClick={openAdd} style={addBtnStyle}>+ Add Student</button>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={exportCSV} style={s.csvBtn}><i className="bi bi-download me-1"></i>CSV</button>
+          <button onClick={openAdd} style={s.addBtn}><i className="bi bi-plus-lg me-1"></i>Add</button>
+        </div>
       </div>
 
-      {/* Toolbar */}
-      <div style={toolbarStyle}>
-        <input
-          type="text" placeholder="🔍 Search name, email, course..."
-          value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-          style={{ ...searchStyle, flex: 2 }}
-        />
-        <select
-          value={filter} onChange={e => { setFilter(e.target.value); setPage(1) }}
-          style={selectStyle}
-        >
+      {/* Search + Filter */}
+      {/* ── FIX 2 (continued): Use "filter-" prefix here ── */}
+      <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap' }}>
+        <div style={{ ...s.searchWrap, flex:2, minWidth:180 }}>
+          <i className="bi bi-search" style={s.searchIcon}></i>
+          <input type="text" placeholder="Search name, email, course..." value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
+            style={{ ...s.searchInput, borderRadius:12 }} />
+        </div>
+        <select value={filter} onChange={e => { setFilter(e.target.value); setPage(1) }}
+          style={{ ...s.select, borderRadius:12, minWidth:140 }}>
           <option value="">All Courses</option>
-          {courses.map(c => <option key={c} value={c}>{c}</option>)}
+          {COURSE_GROUPS.map(g => (
+            <optgroup key={`filter-${g.group}`} label={g.group}>
+              {g.courses.map(c => <option key={`filter-${c}`} value={c}>{c}</option>)}
+            </optgroup>
+          ))}
         </select>
-        <button onClick={exportCSV} style={csvBtnStyle}>⬇ CSV</button>
       </div>
 
-      {/* Table */}
-      <div style={tableWrapStyle}>
-        <table className="table table-hover mb-0">
-          <thead>
-            <tr>
-              <th style={thStyle}>#</th>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Email</th>
-              <th style={thStyle}>Phone</th>
-              <th style={thStyle}>Course</th>
-              <th style={thStyle}>Joined</th>
-              <th style={thStyle}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="7" style={centerTd}>Loading...</td></tr>
-            ) : paged.length === 0 ? (
-              <tr><td colSpan="7" style={centerTd}>No students found.</td></tr>
-            ) : (
-              paged.map((s, i) => (
-                <tr key={s.id}>
-                  <td style={tdStyle}>{(page - 1) * perPage + i + 1}</td>
-                  <td style={tdStyle}><strong>{s.name}</strong></td>
-                  <td style={tdStyle}>{s.email}</td>
-                  <td style={tdStyle}>{s.phone || '—'}</td>
-                  <td style={tdStyle}>
-                    <span style={{ display:'inline-block',padding:'3px 9px',borderRadius:20,fontSize:11,fontWeight:600,background:'#ede9fe',color:'#6d28d9' }}>
-                      {s.course || '—'}
-                    </span>
-                  </td>
-                  <td style={{ ...tdStyle, fontSize: 12, whiteSpace: 'nowrap' }}>{s.date_of_joining || '—'}</td>
-                  <td style={tdStyle}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => openEdit(s)} style={editBtnStyle}>Edit</button>
-                      <button onClick={() => setConfirm(s.id)} style={delBtnStyle}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div style={{ fontSize:12, fontWeight:700, color:'#6366f1', background:'#eef2ff', padding:'5px 12px', borderRadius:20, display:'inline-block', marginBottom:16 }}>
+        {filtered.length} students
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 16px',background:'#fff',border:'1px solid #e8ecf0',borderTop:'1px solid #f0f4f8',flexWrap:'wrap',gap:8 }}>
-          <span style={{ fontSize:12,color:'#718096' }}>
-            Showing {Math.min((page-1)*perPage+1,total)}–{Math.min(page*perPage,total)} of {total}
-          </span>
-          <div style={{ display:'flex',gap:4 }}>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-              <button key={p} onClick={() => setPage(p)} style={{
-                padding:'5px 11px',border:'1.5px solid #e2e8f0',
-                background: p === page ? '#6366f1' : '#fff',
-                color: p === page ? '#fff' : '#4a5568',
-                borderColor: p === page ? '#6366f1' : '#e2e8f0',
-                borderRadius:7,fontSize:12,cursor:'pointer'
-              }}>{p}</button>
-            ))}
+      {/* ── DESKTOP TABLE ── */}
+      <div className="mgr-desktop">
+        <div style={s.card}>
+          <div style={{ overflowX:'auto' }}>
+            <table style={s.table}>
+              <thead>
+                <tr>{['#','Name','Email','Phone','Course','Joined','Actions'].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan="7" style={s.emptyTd}>Loading...</td></tr>
+                ) : paged.length === 0 ? (
+                  <tr><td colSpan="7" style={s.emptyTd}>No students found.</td></tr>
+                ) : paged.map((st, i) => (
+                  <tr key={st.id} style={s.tr}
+                    onMouseEnter={e => e.currentTarget.style.background='#fafbff'}
+                    onMouseLeave={e => e.currentTarget.style.background='transparent'}
+                  >
+                    <td style={s.td}><span style={s.indexBadge}>{(page-1)*perPage+i+1}</span></td>
+                    <td style={s.td}><strong style={{ color:'#1e1b4b' }}>{st.name}</strong></td>
+                    <td style={s.td}><span style={{ color:'#64748b' }}>{st.email}</span></td>
+                    <td style={s.td}>{st.phone||'—'}</td>
+                    <td style={s.td}><span style={courseBadgeStyle(st.course)}>{st.course||'—'}</span></td>
+                    <td style={{ ...s.td, fontSize:12, color:'#64748b', whiteSpace:'nowrap' }}>{st.date_of_joining||'—'}</td>
+                    <td style={s.td}>
+                      <div style={s.actionBtns}>
+                        <button onClick={() => openEdit(st)} style={s.editBtn}><i className="bi bi-pencil-fill me-1"></i>Edit</button>
+                        <button onClick={() => setConfirm(st.id)} style={s.delBtn}><i className="bi bi-trash-fill me-1"></i>Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+          <Pagination total={total} perPage={perPage} page={page} setPage={setPage} />
         </div>
-      )}
+      </div>
 
-      {/* ADD / EDIT MODAL */}
-      {modal && (
-        <div style={modalBgStyle} onClick={e => { if (e.target === e.currentTarget) setModal(false) }}>
-          <div style={modalBoxStyle}>
-            <button onClick={() => setModal(false)} style={closeStyle}>✕</button>
-            <h5 style={{ fontWeight: 700, color: '#1a202c', margin: '0 0 20px' }}>
-              {editId ? 'Edit Student' : 'Add Student'}
-            </h5>
-            {[
-              { label: 'Full Name *',       name: 'name',            type: 'text',  placeholder: 'Enter full name' },
-              { label: 'Email *',           name: 'email',           type: 'email', placeholder: 'Enter email address' },
-              { label: 'Phone *',           name: 'phone',           type: 'text',  placeholder: 'Enter phone number' },
-              { label: 'Course *',          name: 'course',          type: 'text',  placeholder: 'Enter course name' },
-              { label: 'Date of Joining *', name: 'date_of_joining', type: 'date',  placeholder: '' },
-            ].map(f => (
-              <div key={f.name} style={{ marginBottom: 14 }}>
-                <label style={lblStyle}>{f.label}</label>
-                <input
-                  type={f.type} name={f.name}
-                  value={form[f.name]}
-                  onChange={handleChange}
-                  placeholder={f.placeholder}
-                  style={inputStyle}
-                />
+      {/* ── MOBILE CARDS ── */}
+      <div className="mgr-mobile">
+        {loading ? (
+          <div style={{ textAlign:'center', padding:40, color:'#94a3b8' }}>Loading...</div>
+        ) : paged.length === 0 ? (
+          <div style={{ textAlign:'center', padding:40, color:'#94a3b8' }}>No students found.</div>
+        ) : (
+          <>
+            {paged.map((st, i) => (
+              <div key={st.id} style={{ background:'#fff', borderRadius:16, padding:16, marginBottom:12, boxShadow:'0 4px 16px rgba(99,102,241,.08)', border:'1px solid rgba(99,102,241,.06)' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
+                  <div style={{ width:44, height:44, borderRadius:12, background:'linear-gradient(135deg,#6366f1,#a78bfa)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800, fontSize:16, flexShrink:0 }}>
+                    {st.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:800, color:'#1e1b4b', fontSize:15, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{st.name}</div>
+                    <div style={{ fontSize:12, color:'#64748b', marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{st.email}</div>
+                  </div>
+                  <span style={courseBadgeStyle(st.course)}>{st.course||'—'}</span>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
+                  <div style={{ background:'#f8fafc', borderRadius:10, padding:'8px 10px' }}>
+                    <div style={{ fontSize:10, color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:'.4px' }}>Phone</div>
+                    <div style={{ fontSize:13, fontWeight:600, color:'#1e1b4b', marginTop:2 }}>{st.phone||'—'}</div>
+                  </div>
+                  <div style={{ background:'#f8fafc', borderRadius:10, padding:'8px 10px' }}>
+                    <div style={{ fontSize:10, color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:'.4px' }}>Joined</div>
+                    <div style={{ fontSize:13, fontWeight:600, color:'#1e1b4b', marginTop:2 }}>{st.date_of_joining||'—'}</div>
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={() => openEdit(st)} style={{ ...s.editBtn, flex:1, justifyContent:'center', padding:'10px' }}>
+                    <i className="bi bi-pencil-fill me-2"></i>Edit
+                  </button>
+                  <button onClick={() => setConfirm(st.id)} style={{ ...s.delBtn, flex:1, justifyContent:'center', padding:'10px' }}>
+                    <i className="bi bi-trash-fill me-2"></i>Delete
+                  </button>
+                </div>
               </div>
             ))}
-            <button onClick={save} disabled={saving} style={saveBtnStyle}>
-              {saving ? 'Saving...' : 'Save Student'}
-            </button>
-          </div>
-        </div>
+            <Pagination total={total} perPage={perPage} page={page} setPage={setPage} />
+          </>
+        )}
+      </div>
+
+      {modal && (
+        <Modal title={editId ? 'Edit Student' : 'Add Student'} onClose={() => setModal(false)}>
+          {modalContent}
+        </Modal>
+      )}
+      {confirm && (
+        <Confirm onCancel={() => setConfirm(null)} onConfirm={() => deleteStudent(confirm)} msg="This student record will be permanently removed." />
       )}
 
-      {/* CONFIRM DELETE */}
-      {confirm && (
-        <div style={modalBgStyle}>
-          <div style={{ ...modalBoxStyle, maxWidth: 360, textAlign: 'center' }}>
-            <div style={{ width:54,height:54,background:'#fff5f5',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px',fontSize:'1.5rem' }}>🗑️</div>
-            <h6 style={{ fontWeight:700,color:'#1a202c',marginBottom:8 }}>Delete Student?</h6>
-            <p style={{ color:'#718096',fontSize:13,marginBottom:24 }}>This student record will be permanently removed.</p>
-            <div style={{ display:'flex',gap:10 }}>
-              <button onClick={() => setConfirm(null)} style={{ flex:1,padding:10,borderRadius:10,border:'1.5px solid #e2e8f0',background:'#fff',fontWeight:600,cursor:'pointer' }}>Cancel</button>
-              <button onClick={() => deleteStudent(confirm)} style={{ flex:1,padding:10,borderRadius:10,border:'none',background:'#e53e3e',color:'#fff',fontWeight:600,cursor:'pointer' }}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <style>{`
+        @media(min-width:769px){ .mgr-mobile{ display:none } .mgr-desktop{ display:block } }
+        @media(max-width:768px){ .mgr-desktop{ display:none } .mgr-mobile{ display:block } }
+      `}</style>
     </div>
   )
 }
-
-// ── Shared Styles ──
-const addBtnStyle = { display:'inline-flex',alignItems:'center',gap:6,background:'#6366f1',color:'#fff',border:'none',padding:'9px 18px',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer' }
-const toolbarStyle = { background:'#fff',borderRadius:'14px 14px 0 0',border:'1px solid #e8ecf0',borderBottom:'none',padding:'14px 16px',display:'flex',gap:10,alignItems:'center',flexWrap:'wrap' }
-const searchStyle = { padding:'8px 13px',border:'1.5px solid #e2e8f0',borderRadius:9,fontSize:13,outline:'none',background:'#f8fafc' }
-const selectStyle = { padding:'8px 13px',border:'1.5px solid #e2e8f0',borderRadius:9,fontSize:13,outline:'none',background:'#f8fafc',cursor:'pointer' }
-const csvBtnStyle = { display:'inline-flex',alignItems:'center',gap:5,background:'#eff6ff',color:'#2563eb',border:'1.5px solid #bfdbfe',padding:'7px 13px',borderRadius:9,fontSize:12,fontWeight:600,cursor:'pointer' }
-const tableWrapStyle = { background:'#fff',borderRadius:'0 0 14px 14px',border:'1px solid #e8ecf0',borderTop:'none',overflow:'hidden' }
-const thStyle = { background:'#f8fafc',color:'#4a5568',fontSize:11,textTransform:'uppercase',letterSpacing:'.5px',padding:'13px 15px',borderBottom:'1px solid #e8ecf0',whiteSpace:'nowrap',fontWeight:700 }
-const tdStyle = { padding:'11px 15px',verticalAlign:'middle',color:'#2d3748',fontSize:13.5,borderColor:'#f0f4f8' }
-const centerTd = { textAlign:'center',padding:'32px',color:'#a0aec0',fontSize:14 }
-const editBtnStyle = { background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',padding:'5px 11px',borderRadius:7,fontSize:12,cursor:'pointer' }
-const delBtnStyle = { background:'#fff5f5',color:'#e53e3e',border:'1px solid #fed7d7',padding:'5px 11px',borderRadius:7,fontSize:12,cursor:'pointer' }
-const modalBgStyle = { position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:16 }
-const modalBoxStyle = { background:'#fff',borderRadius:16,padding:30,width:'100%',maxWidth:480,position:'relative',maxHeight:'90vh',overflowY:'auto' }
-const closeStyle = { position:'absolute',top:14,right:14,background:'#f7fafc',border:'none',borderRadius:8,width:30,height:30,fontSize:15,color:'#718096',cursor:'pointer' }
-const lblStyle = { display:'block',fontSize:13,fontWeight:500,color:'#4a5568',marginBottom:5 }
-const inputStyle = { width:'100%',padding:'9px 13px',border:'1.5px solid #e2e8f0',borderRadius:9,fontSize:14,color:'#2d3748',outline:'none',background:'#f8fafc',boxSizing:'border-box' }
-const saveBtnStyle = { width:'100%',background:'#6366f1',color:'#fff',border:'none',padding:11,borderRadius:10,fontSize:14,fontWeight:600,cursor:'pointer',marginTop:6 }
 
 export default StudentsMgr

@@ -14,11 +14,6 @@ function AdminLogin() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
-  // If already logged in → go straight to dashboard
-  if (sessionStorage.getItem('adminToken')) {
-    return <Navigate to="/portal/dashboard" replace />
-  }
-
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value })
 
   // Step 1 — Submit username + password → sends OTP

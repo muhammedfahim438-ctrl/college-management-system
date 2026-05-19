@@ -156,3 +156,23 @@ class VerifyOTPAPI(APIView):
             {'error': 'Invalid OTP'},
             status=status.HTTP_400_BAD_REQUEST
         )
+    
+class ContactDetailAPI(APIView):
+    def delete(self, request, pk):
+        contact = get_object_or_404(Contact, pk=pk)
+        contact.delete()
+        return Response({'message': 'Deleted successfully'})       
+
+class CarouselDetailAPI(APIView):
+    def put(self, request, pk):
+        item = get_object_or_404(Carousel, pk=pk)
+        # update title
+        item.title = request.data.get('title', item.title)
+        if 'image' in request.FILES:
+            item.image = request.FILES['image']
+        item.save()
+        return Response({'success': True})
+
+    def delete(self, request, pk):
+        get_object_or_404(Carousel, pk=pk).delete()
+        return Response({'success': True})    

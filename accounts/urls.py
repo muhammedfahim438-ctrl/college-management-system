@@ -10,7 +10,7 @@ urlpatterns = [
     # Dashboard
     path('dashboard/', views.dashboard, name='dashboard'),
 
-    # OTP
+    # OTP API
     path('api/send-otp/',   views.send_otp_api,   name='send_otp_api'),
     path('api/verify-otp/', views.verify_otp_api, name='verify_otp_api'),
 

@@ -9,6 +9,7 @@ from django.core.mail import send_mail
 from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.core.paginator import Paginator
 
 from students.models import Student
 from carousel.models import Carousel
@@ -18,21 +19,33 @@ from .models import EmailOTP
 from django.views.decorators.cache import never_cache
 
 
-# ── AUTH ──────────────────────────────────────────────────────────
+# ── HELPER ────────────────────────────────────────────────────────
+def paginate(queryset, request, per_page):
+    page = int(request.GET.get('page', 1))
+    paginator = Paginator(queryset, per_page)
+    page_obj  = paginator.get_page(page)
+    return page_obj, {
+        'page':        page_obj.number,
+        'total_pages': paginator.num_pages,
+        'total':       paginator.count,
+        'per_page':    per_page,
+        'has_next':    page_obj.has_next(),
+        'has_prev':    page_obj.has_previous(),
+    }
 
+
+# ── AUTH ──────────────────────────────────────────────────────────
 def admin_login(request):
     if request.user.is_authenticated:
         logout(request)
-
     show_otp = False
-    user_id = request.session.get('otp_user_id')
+    user_id  = request.session.get('otp_user_id')
     if user_id:
         show_otp = True
-
     if request.method == 'POST':
         if 'otp' in request.POST:
             entered_otp = request.POST.get('otp')
-            user_id = request.session.get('otp_user_id')
+            user_id     = request.session.get('otp_user_id')
             if not user_id:
                 messages.error(request, 'Session expired. Please login again.')
                 return redirect('admin_login')
@@ -58,7 +71,7 @@ def admin_login(request):
         else:
             username = request.POST.get('username')
             password = request.POST.get('password')
-            user = authenticate(username=username, password=password)
+            user     = authenticate(username=username, password=password)
             if user and user.is_staff:
                 otp = str(random.randint(100000, 999999))
                 EmailOTP.objects.filter(user=user).delete()
@@ -75,7 +88,6 @@ def admin_login(request):
                 messages.success(request, 'OTP sent to your registered email.')
             else:
                 messages.error(request, 'Invalid username or password')
-
     return render(request, 'accounts/login.html', {'show_otp': show_otp})
 
 
@@ -86,7 +98,6 @@ def admin_logout(request):
 
 
 # ── DASHBOARD ─────────────────────────────────────────────────────
-
 @login_required(login_url='admin_login')
 @never_cache
 def dashboard(request):
@@ -99,7 +110,6 @@ def dashboard(request):
 
 
 # ── OTP API ───────────────────────────────────────────────────────
-
 @csrf_exempt
 def send_otp_api(request):
     if request.method != 'POST':
@@ -123,8 +133,8 @@ def verify_otp_api(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=400)
     try:
-        data = json.loads(request.body)
-        user = User.objects.get(username=data.get('username'))
+        data    = json.loads(request.body)
+        user    = User.objects.get(username=data.get('username'))
         otp_obj = EmailOTP.objects.get(user=user)
         if otp_obj.is_expired():
             otp_obj.delete()
@@ -142,7 +152,6 @@ def verify_otp_api(request):
 
 
 # ── AJAX: COUNTS ──────────────────────────────────────────────────
-
 @csrf_exempt
 def dashboard_counts(request):
     return JsonResponse({
@@ -154,14 +163,15 @@ def dashboard_counts(request):
 
 
 # ── AJAX: STUDENTS ────────────────────────────────────────────────
-
 @csrf_exempt
 def student_list_json(request):
-    students = list(Student.objects.order_by('-id').values(
+    qs       = Student.objects.order_by('-id')
+    page_obj, meta = paginate(qs, request, per_page=15)
+    students = list(page_obj.object_list.values(
         'id', 'name', 'email', 'phone', 'course', 'date_of_joining'))
     for s in students:
         s['date_of_joining'] = str(s['date_of_joining']) if s['date_of_joining'] else ''
-    return JsonResponse({'students': students})
+    return JsonResponse({'students': students, **meta})
 
 
 @csrf_exempt
@@ -170,10 +180,10 @@ def student_add_ajax(request):
         try:
             data = json.loads(request.body)
             Student.objects.create(
-                name=data.get('name', '').strip(),
-                email=data.get('email', '').strip(),
-                phone=data.get('phone', '').strip(),
-                course=data.get('course', '').strip(),
+                name=data.get('name','').strip(),
+                email=data.get('email','').strip(),
+                phone=data.get('phone','').strip(),
+                course=data.get('course','').strip(),
                 date_of_joining=data.get('date_of_joining'),
             )
             return JsonResponse({'success': True})
@@ -187,11 +197,11 @@ def student_edit_ajax(request, pk):
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            s = get_object_or_404(Student, pk=pk)
-            s.name = data.get('name', '').strip()
-            s.email = data.get('email', '').strip()
-            s.phone = data.get('phone', '').strip()
-            s.course = data.get('course', '').strip()
+            s    = get_object_or_404(Student, pk=pk)
+            s.name            = data.get('name','').strip()
+            s.email           = data.get('email','').strip()
+            s.phone           = data.get('phone','').strip()
+            s.course          = data.get('course','').strip()
             s.date_of_joining = data.get('date_of_joining')
             s.save()
             return JsonResponse({'success': True})
@@ -209,12 +219,13 @@ def student_delete_ajax(request, pk):
 
 
 # ── AJAX: CAROUSEL ────────────────────────────────────────────────
-
 @csrf_exempt
 def carousel_list_json(request):
-    items = [{'id': i.id, 'title': i.title or '', 'image_url': i.image.url}
-             for i in Carousel.objects.order_by('-id')]
-    return JsonResponse({'items': items})
+    qs       = Carousel.objects.order_by('-id')
+    page_obj, meta = paginate(qs, request, per_page=8)
+    items    = [{'id': i.id, 'title': i.title or '', 'image_url': i.image.url}
+                for i in page_obj.object_list]
+    return JsonResponse({'items': items, **meta})
 
 
 @csrf_exempt
@@ -224,10 +235,11 @@ def carousel_add_ajax(request):
         if not image:
             return JsonResponse({'error': 'Image is required.'}, status=400)
         obj = Carousel.objects.create(
-            title=request.POST.get('title', '').strip(),
+            title=request.POST.get('title','').strip(),
             image=image
         )
-        return JsonResponse({'success': True, 'id': obj.id, 'title': obj.title or '', 'image_url': obj.image.url})
+        return JsonResponse({'success': True, 'id': obj.id,
+                             'title': obj.title or '', 'image_url': obj.image.url})
     return JsonResponse({'error': 'POST required'}, status=400)
 
 
@@ -235,9 +247,14 @@ def carousel_add_ajax(request):
 def carousel_edit_ajax(request, pk):
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
             obj = get_object_or_404(Carousel, pk=pk)
-            obj.title = data.get('title', '').strip()
+            if request.content_type and 'multipart' in request.content_type:
+                obj.title = request.POST.get('title','').strip()
+                if 'image' in request.FILES:
+                    obj.image = request.FILES['image']
+            else:
+                data      = json.loads(request.body)
+                obj.title = data.get('title','').strip()
             obj.save()
             return JsonResponse({'success': True})
         except Exception as e:
@@ -254,12 +271,13 @@ def carousel_delete_ajax(request, pk):
 
 
 # ── AJAX: GALLERY ─────────────────────────────────────────────────
-
 @csrf_exempt
 def gallery_list_json(request):
-    items = [{'id': i.id, 'title': i.title or '', 'image_url': i.image.url}
-             for i in Gallery.objects.order_by('-id')]
-    return JsonResponse({'items': items})
+    qs       = Gallery.objects.order_by('-id')
+    page_obj, meta = paginate(qs, request, per_page=8)
+    items    = [{'id': i.id, 'title': i.title or '', 'image_url': i.image.url}
+                for i in page_obj.object_list]
+    return JsonResponse({'items': items, **meta})
 
 
 @csrf_exempt
@@ -269,10 +287,11 @@ def gallery_add_ajax(request):
         if not image:
             return JsonResponse({'error': 'Image is required.'}, status=400)
         obj = Gallery.objects.create(
-            title=request.POST.get('title', '').strip(),
+            title=request.POST.get('title','').strip(),
             image=image
         )
-        return JsonResponse({'success': True, 'id': obj.id, 'title': obj.title or '', 'image_url': obj.image.url})
+        return JsonResponse({'success': True, 'id': obj.id,
+                             'title': obj.title or '', 'image_url': obj.image.url})
     return JsonResponse({'error': 'POST required'}, status=400)
 
 
@@ -280,9 +299,14 @@ def gallery_add_ajax(request):
 def gallery_edit_ajax(request, pk):
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
             obj = get_object_or_404(Gallery, pk=pk)
-            obj.title = data.get('title', '').strip()
+            if request.content_type and 'multipart' in request.content_type:
+                obj.title = request.POST.get('title','').strip()
+                if 'image' in request.FILES:
+                    obj.image = request.FILES['image']
+            else:
+                data      = json.loads(request.body)
+                obj.title = data.get('title','').strip()
             obj.save()
             return JsonResponse({'success': True})
         except Exception as e:
@@ -299,14 +323,15 @@ def gallery_delete_ajax(request, pk):
 
 
 # ── AJAX: CONTACTS ────────────────────────────────────────────────
-
 @csrf_exempt
 def contact_list_json(request):
-    contacts = list(Contact.objects.order_by('-id').values(
+    qs       = Contact.objects.order_by('-id')
+    page_obj, meta = paginate(qs, request, per_page=10)
+    contacts = list(page_obj.object_list.values(
         'id', 'name', 'email', 'subject', 'message', 'created_at'))
     for c in contacts:
         c['created_at'] = c['created_at'].strftime('%d %b %Y, %I:%M %p') if c['created_at'] else ''
-    return JsonResponse({'contacts': contacts})
+    return JsonResponse({'contacts': contacts, **meta})
 
 
 @csrf_exempt

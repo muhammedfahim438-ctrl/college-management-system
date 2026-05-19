@@ -5,6 +5,8 @@ from .views import (
     CarouselListAPI,
     GalleryListAPI,
     ContactListAPI,
+    ContactDetailAPI,
+    CarouselDetailAPI,
     LoginAPI,
     SendOTPAPI,
     VerifyOTPAPI,
@@ -21,4 +23,6 @@ urlpatterns = [
     path('carousel/', CarouselListAPI.as_view()),
     path('gallery/', GalleryListAPI.as_view()),
     path('contacts/', ContactListAPI.as_view()),
+    path('contacts/<int:pk>/',  ContactDetailAPI.as_view()),
+    path('carousel/<int:pk>/', CarouselDetailAPI.as_view()),
 ]

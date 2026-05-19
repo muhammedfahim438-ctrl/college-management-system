@@ -1,227 +1,260 @@
 import { useState, useEffect } from 'react'
+import { s, Modal, Confirm, Pagination } from './adminStyles'
+import ImageCropper from './ImageCropper'
 
 function getCsrf() {
   return document.cookie.match(/csrftoken=([^;]+)/)?.[1] || ''
 }
 
 function GalleryMgr() {
-  const [items, setItems]       = useState([])
-  const [search, setSearch]     = useState('')
-  const [loading, setLoading]   = useState(true)
-  const [modal, setModal]       = useState(false)
-  const [editItem, setEditItem] = useState(null)
-  const [title, setTitle]       = useState('')
-  const [file, setFile]         = useState(null)
-  const [saving, setSaving]     = useState(false)
-  const [confirm, setConfirm]   = useState(null)
+  const [items, setItems]               = useState([])
+  const [search, setSearch]             = useState('')
+  const [loading, setLoading]           = useState(true)
+  const [page, setPage]                 = useState(1)
+  const [totalPages, setTotalPages]     = useState(1)
+  const [total, setTotal]               = useState(0)
+  const [modal, setModal]               = useState(false)
+  const [editItem, setEditItem]         = useState(null)
+  const [title, setTitle]               = useState('')
+  const [rawSrc, setRawSrc]             = useState(null)
+  const [croppedBlob, setCroppedBlob]   = useState(null)
+  const [croppedPreview, setCroppedPreview] = useState(null)
+  const [showCropper, setShowCropper]   = useState(false)
+  const [saving, setSaving]             = useState(false)
+  const [confirm, setConfirm]           = useState(null)
 
-  const load = () => {
+  const load = (p = page) => {
     setLoading(true)
-    fetch('/college-admin/api/gallery/', { credentials: 'include' })
+    fetch(`/college-admin/api/gallery/?page=${p}`, { credentials:'include' })
       .then(r => r.json())
-      .then(d => { setItems(d.items || []); setLoading(false) })
+      .then(d => {
+        setItems(d.items||[])
+        setPage(d.page||1)
+        setTotalPages(d.total_pages||1)
+        setTotal(d.total||0)
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(1) }, [])
 
-  const openAdd = () => {
-    setEditItem(null); setTitle(''); setFile(null)
-    setModal(true)
+  const resetModal = () => {
+    setTitle(''); setRawSrc(null); setCroppedBlob(null)
+    setCroppedPreview(null); setShowCropper(false)
   }
 
-  const openEdit = (item) => {
-    setEditItem(item); setTitle(item.title || ''); setFile(null)
-    setModal(true)
+  const openAdd  = () => { setEditItem(null); resetModal(); setModal(true) }
+  const openEdit = item => { setEditItem(item); setTitle(item.title||''); resetModal(); setModal(true) }
+
+  const handleFileChange = e => {
+    const file = e.target.files[0]
+    if (!file) return
+    setRawSrc(URL.createObjectURL(file))
+    setCroppedBlob(null); setCroppedPreview(null)
+    setShowCropper(true)
+  }
+
+  const handleCropConfirm = (blob, previewUrl) => {
+    setCroppedBlob(blob); setCroppedPreview(previewUrl); setShowCropper(false)
   }
 
   const save = async () => {
     setSaving(true)
     try {
       if (editItem) {
-        const res = await fetch(`/college-admin/api/gallery/edit/${editItem.id}/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-          credentials: 'include',
-          body: JSON.stringify({ title }),
-        })
-        const d = await res.json()
-        if (d.success) { setModal(false); load() }
-        else alert(d.error || 'Failed to save.')
-      } else {
-        if (!file) { alert('Please select an image.'); setSaving(false); return }
         const fd = new FormData()
         fd.append('title', title)
-        fd.append('image', file)
-        const res = await fetch('/college-admin/api/gallery/add/', {
-          method: 'POST',
-          headers: { 'X-CSRFToken': getCsrf() },
-          credentials: 'include',
-          body: fd,
+        if (croppedBlob) fd.append('image', croppedBlob, 'gallery.jpg')
+        const res = await fetch(`/college-admin/api/gallery/edit/${editItem.id}/`, {
+          method:'POST', credentials:'include',
+          headers:{ 'X-CSRFToken':getCsrf() }, body:fd,
         })
         const d = await res.json()
-        if (d.success) { setModal(false); load() }
-        else alert(d.error || 'Failed to upload.')
+        if (d.success) { setModal(false); load() } else alert(d.error||'Failed.')
+      } else {
+        if (!croppedBlob) { alert('Please select and crop an image.'); setSaving(false); return }
+        const fd = new FormData()
+        fd.append('title', title)
+        fd.append('image', croppedBlob, 'gallery.jpg')
+        const res = await fetch('/college-admin/api/gallery/add/', {
+          method:'POST', credentials:'include',
+          headers:{ 'X-CSRFToken':getCsrf() }, body:fd,
+        })
+        const d = await res.json()
+        if (d.success) { setModal(false); load() } else alert(d.error||'Failed.')
       }
     } catch { alert('Network error.') }
     setSaving(false)
   }
 
-  const deleteItem = async (id) => {
+  const deleteItem = async id => {
     const res = await fetch(`/college-admin/api/gallery/delete/${id}/`, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf() },
-      credentials: 'include',
+      method:'POST', credentials:'include', headers:{ 'X-CSRFToken':getCsrf() }
     })
     const d = await res.json()
-    if (d.success) load()
-    else alert(d.error || 'Failed to delete.')
+    if (d.success) load(page); else alert(d.error||'Failed.')
     setConfirm(null)
   }
 
-  const filtered = items.filter(i =>
-    (i.title || '').toLowerCase().includes(search.toLowerCase())
+  const filtered = items.filter(i => (i.title||'').toLowerCase().includes(search.toLowerCase()))
+
+  const modalContent = (
+    <>
+      {editItem && !croppedPreview && (
+        <div style={{ marginBottom:16 }}>
+          <label style={s.label}>Current Image</label>
+          <img src={editItem.image_url} alt="current"
+            style={{ width:'100%', height:200, objectFit:'cover', borderRadius:12, border:'2px solid #e8ecf4' }} />
+        </div>
+      )}
+      {croppedPreview && (
+        <div style={{ marginBottom:16 }}>
+          <label style={s.label}>Cropped Preview</label>
+          <img src={croppedPreview} alt="preview"
+            style={{ width:'100%', aspectRatio:'1/1', objectFit:'cover', borderRadius:12, border:'2px solid #c7d2fe' }} />
+          <button onClick={() => setShowCropper(true)} style={{ marginTop:8, background:'#eef2ff', border:'1.5px solid #c7d2fe', color:'#6366f1', borderRadius:9, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
+            <i className="bi bi-crop"></i> Re-crop
+          </button>
+        </div>
+      )}
+      <div style={s.formGroup}>
+        <label style={s.label}>{editItem ? 'Change Image (optional)' : 'Select Image *'}</label>
+        <label style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:10, padding:'14px', borderRadius:12, border:'2px dashed #c7d2fe', background:'#f8faff', cursor:'pointer', color:'#6366f1', fontWeight:700, fontSize:13 }}>
+          <i className="bi bi-cloud-upload-fill" style={{ fontSize:'1.2rem' }}></i>
+          {croppedBlob ? 'Change Image' : 'Choose & Crop Image'}
+          <input type="file" accept="image/*" onChange={handleFileChange} style={{ display:'none' }} />
+        </label>
+      </div>
+      <div style={s.formGroup}>
+        <label style={s.label}>Title (optional)</label>
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+          placeholder="Enter image title" style={s.input} />
+      </div>
+      <button onClick={save} disabled={saving} style={s.saveBtn}>
+        {saving ? <><i className="bi bi-hourglass-split me-2"></i>Saving...</> : <><i className="bi bi-check-lg me-2"></i>Save</>}
+      </button>
+    </>
   )
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+      <div style={s.pageHeader}>
         <div>
-          <h4 style={{ fontSize: 21, fontWeight: 700, color: '#1a202c', margin: 0 }}>Gallery</h4>
-          <p style={{ color: '#718096', fontSize: 13, margin: '3px 0 0' }}>Manage gallery images</p>
+          <h4 style={s.pageTitle}>Gallery</h4>
+          <p style={s.pageSubtitle}>Manage campus gallery images</p>
         </div>
-        <button onClick={openAdd} style={addBtnStyle}>+ Add Image</button>
+        <button onClick={openAdd} style={s.addBtn}><i className="bi bi-plus-lg me-1"></i>Add Image</button>
       </div>
 
-      {/* Toolbar */}
-      <div style={toolbarStyle}>
-        <input
-          type="text" placeholder="🔍 Search title..."
-          value={search} onChange={e => setSearch(e.target.value)}
-          style={searchStyle}
-        />
-        <span style={{ fontSize: 12, color: '#718096', whiteSpace: 'nowrap' }}>
-          {filtered.length} image{filtered.length !== 1 ? 's' : ''}
-        </span>
+      <div style={{ marginBottom:16 }}>
+        <div style={s.searchWrap}>
+          <i className="bi bi-search" style={s.searchIcon}></i>
+          <input type="text" placeholder="Search title..." value={search}
+            onChange={e => setSearch(e.target.value)} style={{ ...s.searchInput, borderRadius:12 }} />
+        </div>
       </div>
 
-      {/* Table */}
-      <div style={tableWrapStyle}>
-        <table className="table table-hover mb-0">
-          <thead>
-            <tr>
-              <th style={thStyle}>#</th>
-              <th style={thStyle}>Image</th>
-              <th style={thStyle}>Title</th>
-              <th style={thStyle}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="4" style={centerTd}>Loading...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan="4" style={centerTd}>No gallery images found.</td></tr>
-            ) : (
-              filtered.map((item, i) => (
-                <tr key={item.id}>
-                  <td style={tdStyle}>{i + 1}</td>
-                  <td style={tdStyle}>
-                    <img
-                      src={item.image_url}
-                      alt={item.title}
-                      style={{ width: 72, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }}
-                      onError={e => e.target.style.display = 'none'}
-                    />
+      <div style={{ fontSize:12, fontWeight:700, color:'#6366f1', background:'#eef2ff', padding:'5px 12px', borderRadius:20, display:'inline-block', marginBottom:16 }}>
+        {total} images total
+      </div>
+
+      {/* ── DESKTOP TABLE ── */}
+      <div className="mgr-desktop" style={s.card}>
+        <div style={{ overflowX:'auto' }}>
+          <table style={s.table}>
+            <thead>
+              <tr>{['#','Image','Title','Actions'].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="4" style={s.emptyTd}>Loading...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan="4" style={s.emptyTd}>No gallery images found.</td></tr>
+              ) : filtered.map((item, i) => (
+                <tr key={item.id} style={s.tr}
+                  onMouseEnter={e => e.currentTarget.style.background='#fafbff'}
+                  onMouseLeave={e => e.currentTarget.style.background='transparent'}
+                >
+                  <td style={s.td}><span style={s.indexBadge}>{i+1}</span></td>
+                  <td style={s.td}>
+                    <img src={item.image_url} alt={item.title}
+                      style={{ width:60, height:60, objectFit:'cover', borderRadius:10, border:'2px solid #e8ecf4' }}
+                      onError={e => e.target.style.display='none'} />
                   </td>
-                  <td style={tdStyle}><strong>{item.title || '(No title)'}</strong></td>
-                  <td style={tdStyle}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => openEdit(item)} style={editBtnStyle}>Edit</button>
-                      <button onClick={() => setConfirm(item.id)} style={delBtnStyle}>Delete</button>
+                  <td style={s.td}><strong style={{ color:'#1e1b4b' }}>{item.title||<span style={{ color:'#94a3b8', fontStyle:'italic' }}>No title</span>}</strong></td>
+                  <td style={s.td}>
+                    <div style={s.actionBtns}>
+                      <button onClick={() => openEdit(item)} style={s.editBtn}><i className="bi bi-pencil-fill me-1"></i>Edit</button>
+                      <button onClick={() => setConfirm(item.id)} style={s.delBtn}><i className="bi bi-trash-fill me-1"></i>Delete</button>
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Pagination total={total} perPage={10} page={page} setPage={p => load(p)} />
       </div>
 
-      {/* ADD / EDIT MODAL */}
-      {modal && (
-        <div style={modalBgStyle} onClick={e => { if (e.target === e.currentTarget) setModal(false) }}>
-          <div style={modalBoxStyle}>
-            <button onClick={() => setModal(false)} style={closeStyle}>✕</button>
-            <h5 style={{ fontWeight: 700, color: '#1a202c', margin: '0 0 20px' }}>
-              {editItem ? 'Edit Gallery Title' : 'Add Gallery Image'}
-            </h5>
-            <div style={{ marginBottom: 14 }}>
-              <label style={lblStyle}>Title (optional)</label>
-              <input
-                type="text" value={title}
-                onChange={e => setTitle(e.target.value)}
-                placeholder="Enter image title"
-                style={inputStyle}
-              />
-            </div>
-            {!editItem && (
-              <div style={{ marginBottom: 14 }}>
-                <label style={lblStyle}>Image File *</label>
-                <input
-                  type="file" accept="image/*"
-                  onChange={e => setFile(e.target.files[0])}
-                  style={inputStyle}
-                />
-                {/* Preview */}
-                {file && (
-                  <img
-                    src={URL.createObjectURL(file)}
-                    alt="preview"
-                    style={{ marginTop: 10, width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 10, border: '1px solid #e2e8f0' }}
-                  />
-                )}
+      {/* ── MOBILE CARDS ── */}
+      <div className="mgr-mobile">
+        {loading ? (
+          <div style={{ textAlign:'center', padding:40, color:'#94a3b8' }}>Loading...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign:'center', padding:40, color:'#94a3b8' }}>No gallery images found.</div>
+        ) : (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            {filtered.map((item, i) => (
+              <div key={item.id} style={{ background:'#fff', borderRadius:16, overflow:'hidden', boxShadow:'0 4px 16px rgba(99,102,241,.08)', border:'1px solid rgba(99,102,241,.06)' }}>
+                <div style={{ position:'relative', aspectRatio:'1/1' }}>
+                  <img src={item.image_url} alt={item.title}
+                    style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
+                    onError={e => e.target.style.display='none'} />
+                  <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top,rgba(30,27,75,.7) 0%,transparent 50%)' }}></div>
+                  <div style={{ position:'absolute', top:8, left:8, background:'rgba(99,102,241,.85)', color:'#fff', borderRadius:7, padding:'2px 8px', fontSize:10, fontWeight:700 }}>#{i+1}</div>
+                </div>
+                <div style={{ padding:'10px 12px' }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#1e1b4b', marginBottom:8, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {item.title || <span style={{ color:'#94a3b8', fontStyle:'italic' }}>No title</span>}
+                  </div>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button onClick={() => openEdit(item)} style={{ ...s.editBtn, flex:1, justifyContent:'center', fontSize:11, padding:'7px 4px' }}>
+                      <i className="bi bi-pencil-fill"></i>
+                    </button>
+                    <button onClick={() => setConfirm(item.id)} style={{ ...s.delBtn, flex:1, justifyContent:'center', fontSize:11, padding:'7px 4px' }}>
+                      <i className="bi bi-trash-fill"></i>
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
-            <button onClick={save} disabled={saving} style={saveBtnStyle}>
-              {saving ? 'Saving...' : 'Save'}
-            </button>
+            ))}
           </div>
-        </div>
+        )}
+      </div>
+
+      {modal && (
+        <Modal title={editItem ? 'Edit Gallery Image' : 'Add Gallery Image'} onClose={() => { setModal(false); resetModal() }}>
+          {modalContent}
+        </Modal>
       )}
 
-      {/* CONFIRM DELETE */}
-      {confirm && (
-        <div style={modalBgStyle}>
-          <div style={{ ...modalBoxStyle, maxWidth: 360, textAlign: 'center' }}>
-            <div style={{ width: 54, height: 54, background: '#fff5f5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '1.5rem' }}>🗑️</div>
-            <h6 style={{ fontWeight: 700, color: '#1a202c', marginBottom: 8 }}>Delete Image?</h6>
-            <p style={{ color: '#718096', fontSize: 13, marginBottom: 24 }}>This image will be permanently removed.</p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setConfirm(null)} style={{ flex: 1, padding: 10, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => deleteItem(confirm)} style={{ flex: 1, padding: 10, borderRadius: 10, border: 'none', background: '#e53e3e', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Delete</button>
-            </div>
-          </div>
-        </div>
+      {showCropper && rawSrc && (
+        <ImageCropper
+          imageSrc={rawSrc}
+          aspect={1}
+          onConfirm={handleCropConfirm}
+          onCancel={() => setShowCropper(false)}
+        />
       )}
+
+      {confirm && <Confirm onCancel={() => setConfirm(null)} onConfirm={() => deleteItem(confirm)} />}
+
+      <style>{`
+        @media(min-width:769px){ .mgr-mobile{ display:none } .mgr-desktop{ display:block } }
+        @media(max-width:768px){ .mgr-desktop{ display:none } .mgr-mobile{ display:block } }
+      `}</style>
     </div>
   )
 }
-
-// ── Shared Styles ──
-const addBtnStyle = { display:'inline-flex',alignItems:'center',gap:6,background:'#6366f1',color:'#fff',border:'none',padding:'9px 18px',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer' }
-const toolbarStyle = { background:'#fff',borderRadius:'14px 14px 0 0',border:'1px solid #e8ecf0',borderBottom:'none',padding:'14px 16px',display:'flex',gap:10,alignItems:'center' }
-const searchStyle = { flex:1,padding:'8px 13px',border:'1.5px solid #e2e8f0',borderRadius:9,fontSize:13,outline:'none',background:'#f8fafc' }
-const tableWrapStyle = { background:'#fff',borderRadius:'0 0 14px 14px',border:'1px solid #e8ecf0',borderTop:'none',overflow:'hidden' }
-const thStyle = { background:'#f8fafc',color:'#4a5568',fontSize:11,textTransform:'uppercase',letterSpacing:'.5px',padding:'13px 15px',borderBottom:'1px solid #e8ecf0',whiteSpace:'nowrap',fontWeight:700 }
-const tdStyle = { padding:'11px 15px',verticalAlign:'middle',color:'#2d3748',fontSize:13.5,borderColor:'#f0f4f8' }
-const centerTd = { textAlign:'center',padding:'32px',color:'#a0aec0',fontSize:14 }
-const editBtnStyle = { background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',padding:'5px 11px',borderRadius:7,fontSize:12,cursor:'pointer' }
-const delBtnStyle = { background:'#fff5f5',color:'#e53e3e',border:'1px solid #fed7d7',padding:'5px 11px',borderRadius:7,fontSize:12,cursor:'pointer' }
-const modalBgStyle = { position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:16 }
-const modalBoxStyle = { background:'#fff',borderRadius:16,padding:30,width:'100%',maxWidth:480,position:'relative',maxHeight:'90vh',overflowY:'auto' }
-const closeStyle = { position:'absolute',top:14,right:14,background:'#f7fafc',border:'none',borderRadius:8,width:30,height:30,fontSize:15,color:'#718096',cursor:'pointer' }
-const lblStyle = { display:'block',fontSize:13,fontWeight:500,color:'#4a5568',marginBottom:5 }
-const inputStyle = { width:'100%',padding:'9px 13px',border:'1.5px solid #e2e8f0',borderRadius:9,fontSize:14,color:'#2d3748',outline:'none',background:'#f8fafc',boxSizing:'border-box' }
-const saveBtnStyle = { width:'100%',background:'#6366f1',color:'#fff',border:'none',padding:11,borderRadius:10,fontSize:14,fontWeight:600,cursor:'pointer',marginTop:6 }
 
 export default GalleryMgr

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
 
 // Public Website
 import Navbar    from './components/Navbar'
@@ -34,6 +35,15 @@ function PublicSite() {
 }
 
 function App() {
+  useEffect(() => {
+    // Clear admin token when tab/browser closes
+    const handleUnload = () => {
+      sessionStorage.removeItem('adminToken')
+      sessionStorage.removeItem('adminUsername')
+    }
+    window.addEventListener('beforeunload', handleUnload)
+    return () => window.removeEventListener('beforeunload', handleUnload)
+  }, [])
   return (
     <BrowserRouter>
       <Routes>

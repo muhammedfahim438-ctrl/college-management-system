@@ -139,10 +139,9 @@ function Contact() {
                 </div>
                 <div className="col-12">
                   <button
-                    className="btn-blue w-100"
-                    onClick={handleSubmit}
-                    disabled={loading}
-                    style={{ borderRadius: 12, padding: 14, justifyContent: 'center', border: 'none', cursor: loading ? 'not-allowed' : 'pointer' }}
+                   className="btn-send"
+                   onClick={handleSubmit}
+                   disabled={loading}
                   >
                     {loading
                       ? <><i className="bi bi-hourglass-split"></i> Sending...</>
